@@ -1,72 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>SSU Tracker Pro</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 10px; background: #f0f2f5; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        button { padding: 15px; margin: 5px; width: 45%; font-size: 1em; border-radius: 8px; border: none; cursor: pointer; }
-        .active { background: #002147; color: white; }
-        input { padding: 12px; width: 80%; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; }
-        #video-container { display: none; width: 100%; max-width: 400px; margin: auto; }
-        video { width: 100%; border-radius: 8px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 10px; background: #f0f2f5; color: #333; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; border-top: 5px solid #002147; }
+        h2 { color: #002147; margin-bottom: 5px; }
+        .mode-container { display: flex; justify-content: space-around; gap: 10px; }
+        button { padding: 15px; margin: 5px; font-size: 1em; border-radius: 8px; border: none; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        .btn-mode { width: 48%; background: #e0e0e0; }
+        .btn-mode.active { background: #002147; color: white; transform: scale(1.02); }
+        .btn-action { width: 85%; background: #007bff; color: white; }
+        .btn-manual { background: #4CAF50; color: white; width: 85%; }
+        .btn-enroll { background: #ffc107; color: #000; width: 85%; }
+        input, select { padding: 12px; width: 85%; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 1em; }
+        #video-container { display: none; width: 100%; max-width: 400px; margin: 10px auto; border: 2px solid #002147; border-radius: 10px; overflow: hidden; }
+        video { width: 100%; display: block; }
+        #status { font-weight: bold; padding: 10px; border-radius: 5px; background: #fff; display: inline-block; margin-top: 10px; }
+        .enrollment-box { border-top: 5px solid #ffc107; display: none; }
     </style>
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
-    <h2>🏛️ SSU Tracker</h2>
+
+    <h2>🏛️ SSU Tracker Pro</h2>
     
     <div class="card">
-        <button id="btnAttendance" class="active" onclick="setMode('Attendance')">Attendance</button>
-        <button id="btnRecitation" onclick="setMode('Recitation')">Recitation</button>
+        <div class="mode-container">
+            <button id="btnAttendance" class="btn-mode active" onclick="setMode('Attendance')">Attendance</button>
+            <button id="btnRecitation" class="btn-mode" onclick="setMode('Recitation')">Recitation</button>
+        </div>
+        <div style="margin-top: 15px;">
+            <input type="checkbox" id="enrollToggle" onclick="toggleEnrollmentUI()"> 
+            <label for="enrollToggle"><b>Enable Enrollment Mode</b> (Map NFC)</label>
+        </div>
+    </div>
+
+    <div class="card enrollment-box" id="enrollmentUI">
+        <h3>Assign NFC to Student</h3>
+        <select id="studentSelector">
+            <option value="">-- Select Student to Map --</option>
+            <optgroup label="BSCS 3-1">
+                <option value="Abion, Von Eiron D">Abion, Von Eiron D</option>
+                <option value="Azares, Junel E">Azares, Junel E</option>
+                <option value="Bulawan, Leonel C">Bulawan, Leonel C</option>
+                <option value="Casinto, Rechelle V">Casinto, Rechelle V</option>
+                <option value="Conda, Homer E">Conda, Homer E</option>
+                <option value="De Guzman, Sandra O">De Guzman, Sandra O</option>
+                <option value="De La Vega, Rexon S">De La Vega, Rexon S</option>
+                <option value="Desouza, Ralph M">Desouza, Ralph M</option>
+                <option value="Dominguez, Kim A">Dominguez, Kim A</option>
+                <option value="Estrabela, Edison D">Estrabela, Edison D</option>
+                <option value="Felonia, Lorenz C">Felonia, Lorenz C</option>
+                <option value="Flores, Robylyn U">Flores, Robylyn U</option>
+                <option value="Furio, Rollin M">Furio, Rollin M</option>
+                <option value="Gallano, John Mitch Carlo G">Gallano, John Mitch Carlo G</option>
+            </optgroup>
+        </select>
+        <p><small>Once selected, tap NFC to map.</small></p>
     </div>
 
     <div class="card">
         <input type="text" id="manualId" placeholder="Manual Student ID / Name">
-        <button style="width: 85%; background: #4CAF50; color: white;" onclick="submitManual()">Log Manual Entry</button>
-    </div>
-
-    <div class="card">
-        <button style="width: 85%; background: #007bff; color: white;" onclick="startBarcodeScan()">📷 Scan Barcode/QR</button>
+        <button class="btn-manual" onclick="submitManual()">Log Entry Manually</button>
+        <hr style="margin: 20px; border: 0; border-top: 1px solid #eee;">
+        <button class="btn-action" onclick="startBarcodeScan()">📷 Scan Barcode/QR</button>
         <div id="video-container">
             <video id="video" autoplay></video>
         </div>
     </div>
 
-    <p id="status">Ready to scan NFC...</p>
+    <div id="status">Ready. Click anywhere to start NFC.</div>
 
     <script>
         let currentMode = "Attendance";
+        let isEnrolling = false;
         const scriptURL = "https://script.google.com/macros/s/AKfycbx5sZG0zIJhkB8P6LjKolCrwXXuDzfsrYWU8enK4Ln_cZS9UwcBX__PHLixbYCjnoKJ/exec";
+
+        // Audio confirmation
+        function playBeep(freq = 880, duration = 150) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + (duration / 1000));
+            } catch(e) { console.log("Audio muted"); }
+        }
 
         function setMode(mode) {
             currentMode = mode;
-            document.getElementById('btnAttendance').className = (mode === 'Attendance' ? 'active' : '');
-            document.getElementById('btnRecitation').className = (mode === 'Recitation' ? 'active' : '');
+            document.getElementById('btnAttendance').classList.toggle('active', mode === 'Attendance');
+            document.getElementById('btnRecitation').classList.toggle('active', mode === 'Recitation');
             document.getElementById('status').innerText = "Mode: " + mode;
+            playBeep(440, 50);
+        }
+
+        function toggleEnrollmentUI() {
+            isEnrolling = document.getElementById('enrollToggle').checked;
+            document.getElementById('enrollmentUI').style.display = isEnrolling ? 'block' : 'none';
+            document.getElementById('status').innerText = isEnrolling ? "ENROLLMENT MODE ACTIVE" : "Regular Mode Active";
         }
 
         // --- NFC LOGIC ---
-        async function startNFC() {
+        async function initNFC() {
             if ('NDEFReader' in window) {
-                const ndef = new NDEFReader();
-                await ndef.scan();
-                ndef.onreading = event => processEntry(event.serialNumber);
+                try {
+                    const ndef = new NDEFReader();
+                    await ndef.scan();
+                    document.getElementById('status').innerText = "📡 NFC Scanner Active...";
+                    ndef.onreading = event => {
+                        const nfcSerial = event.serialNumber;
+                        if (isEnrolling) {
+                            handleEnrollment(nfcSerial);
+                        } else {
+                            processEntry(nfcSerial);
+                        }
+                    };
+                } catch (error) {
+                    document.getElementById('status').innerText = "NFC Error: " + error;
+                }
+            } else {
+                document.getElementById('status').innerText = "NFC not supported on this browser.";
             }
         }
 
-        // --- BARCODE LOGIC ---
+        // --- ENROLLMENT (MAPPING) LOGIC ---
+        async function handleEnrollment(nfcSerial) {
+            const studentName = document.getElementById('studentSelector').value;
+            if (!studentName) {
+                alert("Select a student name first!");
+                return;
+            }
+            document.getElementById('status').innerText = "Mapping " + studentName + "...";
+            
+            try {
+                const response = await fetch(scriptURL, {
+                    method: "POST",
+                    body: JSON.stringify({ name: studentName, nfc: nfcSerial })
+                });
+                const result = await response.text();
+                alert(result);
+                playBeep(1200, 300);
+                document.getElementById('status').innerText = "Mapped Successfully!";
+            } catch (e) {
+                alert("Enrollment Failed: " + e);
+            }
+        }
+
+        // --- SCANNING LOGIC ---
         async function startBarcodeScan() {
             const video = document.getElementById('video');
             const container = document.getElementById('video-container');
             container.style.display = "block";
             
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            video.srcObject = stream;
-
-            const barcodeDetector = new BarcodeDetector();
-            const interval = setInterval(async () => {
-                try {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+                const barcodeDetector = new BarcodeDetector();
+                const interval = setInterval(async () => {
                     const barcodes = await barcodeDetector.detect(video);
                     if (barcodes.length > 0) {
                         clearInterval(interval);
@@ -74,11 +173,10 @@
                         container.style.display = "none";
                         processEntry(barcodes[0].rawValue);
                     }
-                } catch (e) {}
-            }, 500);
+                }, 500);
+            } catch (e) { alert("Camera Error: " + e); }
         }
 
-        // --- MANUAL & SCORE LOGIC ---
         function submitManual() {
             const val = document.getElementById('manualId').value;
             if (val) processEntry(val);
@@ -87,24 +185,29 @@
         function processEntry(id) {
             let score = "";
             if (currentMode === "Recitation") {
-                score = prompt(`Enter Recitation Score for ID: ${id}`, "1");
-                if (score === null) return; // Cancelled
+                score = prompt(`Score for ${id}:`, "1");
+                if (score === null) return;
             }
             logToSheet(id, score);
         }
 
         function logToSheet(id, score) {
             const finalURL = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(score)}`;
-            
             fetch(finalURL, { method: "GET", mode: "no-cors" })
             .then(() => {
-                document.getElementById('status').innerHTML = `<b style="color: green;">✅ Success!</b><br>ID: ${id}`;
+                document.getElementById('status').innerHTML = `<b style="color: green;">✅ Logged!</b><br>ID: ${id}`;
+                playBeep(880, 200);
                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                document.getElementById('manualId').value = ""; // Clear manual input
+                document.getElementById('manualId').value = "";
             });
         }
 
-        window.addEventListener('click', startNFC, { once: true });
+        // Start NFC on first user interaction
+        window.addEventListener('click', initNFC, { once: true });
+        
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
     </script>
 </body>
 </html>

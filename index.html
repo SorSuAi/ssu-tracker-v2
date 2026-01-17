@@ -77,24 +77,27 @@
     }
 
     function logToSheet(id) {
-        const finalURL = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}`;
+    // We explicitly build the URL with parameters
+    const urlWithParams = scriptURL + "?id=" + encodeURIComponent(id) + "&type=" + encodeURIComponent(currentMode);
+
+    fetch(urlWithParams, {
+        method: "GET",
+        mode: "no-cors", // Required for Google Apps Script
+    })
+    .then(() => {
+        // Update the UI
+        document.getElementById('status').innerHTML = 
+            `<b style="color: green;">✅ Success!</b><br>ID: ${id}<br>Mode: ${currentMode}`;
         
-        fetch(finalURL, {
-            method: "GET",
-            mode: "no-cors", // This is vital for Google Apps Script
-            headers: {
-                "Content-Type": "text/plain"
-            }
-        })
-        .then(() => {
-            document.getElementById('status').innerHTML = `<b style="color: green;">✅ Recorded in Sheet!</b>`;
-            playBeep(880, 200);
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        })
-        .catch(err => {
-            document.getElementById('status').innerText = "Fetch Error: " + err;
-        });
-    }
+        // Feedbacks
+        playBeep(880, 200); 
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+    })
+    .catch(err => {
+        console.error("Scanning Error:", err);
+        document.getElementById('status').innerText = "Sync Error. Check connection.";
+    });
+}
 
     document.body.addEventListener('click', () => {
         startScanning();

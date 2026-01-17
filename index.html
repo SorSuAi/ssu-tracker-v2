@@ -1,107 +1,110 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SSU Tracker</title>
+    <title>SSU Tracker Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
-        button { padding: 20px; margin: 10px; width: 80%; font-size: 1.2em; cursor: pointer; border: none; border-radius: 8px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .active { background-color: #4CAF50 !important; color: white; transform: scale(1.05); }
-        #status { margin-top: 20px; font-weight: bold; min-height: 50px; }
-        .attendance-btn { background-color: #e0e0e0; }
-        .recitation-btn { background-color: #e0e0e0; }
+        body { font-family: sans-serif; text-align: center; padding: 10px; background: #f0f2f5; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        button { padding: 15px; margin: 5px; width: 45%; font-size: 1em; border-radius: 8px; border: none; cursor: pointer; }
+        .active { background: #002147; color: white; }
+        input { padding: 12px; width: 80%; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; }
+        #video-container { display: none; width: 100%; max-width: 400px; margin: auto; }
+        video { width: 100%; border-radius: 8px; }
     </style>
-    <link rel="manifest" href="manifest.json">
-    <script>
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-    }
-    </script>
 </head>
 <body>
-    <h2>🏛️ SSU Attendance & Recitation</h2>
-    <p id="status">Tap a mode to start scanning...</p>
+    <h2>🏛️ SSU Tracker</h2>
     
-    <button id="btnAttendance" class="attendance-btn active" onclick="setMode('Attendance')">Mode: Attendance</button>
-    <button id="btnRecitation" class="recitation-btn" onclick="setMode('Recitation')">Mode: Recitation</button>
+    <div class="card">
+        <button id="btnAttendance" class="active" onclick="setMode('Attendance')">Attendance</button>
+        <button id="btnRecitation" onclick="setMode('Recitation')">Recitation</button>
+    </div>
 
-   <script>
-    let currentMode = "Attendance";
-    
-    // FIXED: Removed the double URL paste
-    const scriptURL = "https://script.google.com/macros/s/AKfycbx5sZG0zIJhkB8P6LjKolCrwXXuDzfsrYWU8enK4Ln_cZS9UwcBX__PHLixbYCjnoKJ/exec";
+    <div class="card">
+        <input type="text" id="manualId" placeholder="Manual Student ID / Name">
+        <button style="width: 85%; background: #4CAF50; color: white;" onclick="submitManual()">Log Manual Entry</button>
+    </div>
 
-    function playBeep(frequency = 880, duration = 150) {
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + (duration / 1000));
-        } catch(e) { console.error("Audio error", e); }
-    }
+    <div class="card">
+        <button style="width: 85%; background: #007bff; color: white;" onclick="startBarcodeScan()">📷 Scan Barcode/QR</button>
+        <div id="video-container">
+            <video id="video" autoplay></video>
+        </div>
+    </div>
 
-    function setMode(mode) {
-        currentMode = mode;
-        document.getElementById('status').innerText = "Mode set to: " + mode;
-        
-        // Visual button toggle
-        document.getElementById('btnAttendance').classList.toggle('active', mode === 'Attendance');
-        document.getElementById('btnRecitation').classList.toggle('active', mode === 'Recitation');
-        
-        playBeep(440, 50);
-    }
+    <p id="status">Ready to scan NFC...</p>
 
-    async function startScanning() {
-        if ('NDEFReader' in window) {
-            try {
+    <script>
+        let currentMode = "Attendance";
+        const scriptURL = "https://script.google.com/macros/s/AKfycbx5sZG0zIJhkB8P6LjKolCrwXXuDzfsrYWU8enK4Ln_cZS9UwcBX__PHLixbYCjnoKJ/exec";
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnAttendance').className = (mode === 'Attendance' ? 'active' : '');
+            document.getElementById('btnRecitation').className = (mode === 'Recitation' ? 'active' : '');
+            document.getElementById('status').innerText = "Mode: " + mode;
+        }
+
+        // --- NFC LOGIC ---
+        async function startNFC() {
+            if ('NDEFReader' in window) {
                 const ndef = new NDEFReader();
                 await ndef.scan();
-                document.getElementById('status').innerHTML = "📡 <span style='color: blue;'>Scanner Active...</span><br>Tap ID to center-back of phone";
-
-                ndef.onreading = event => {
-                    const id = event.serialNumber;
-                    logToSheet(id);
-                };
-            } catch (error) {
-                document.getElementById('status').innerText = "Error: " + error;
+                ndef.onreading = event => processEntry(event.serialNumber);
             }
-        } else {
-            document.getElementById('status').innerText = "Web NFC not supported on this device.";
         }
-    }
 
-    function logToSheet(id) {
-    // We explicitly build the URL with parameters
-    const urlWithParams = scriptURL + "?id=" + encodeURIComponent(id) + "&type=" + encodeURIComponent(currentMode);
+        // --- BARCODE LOGIC ---
+        async function startBarcodeScan() {
+            const video = document.getElementById('video');
+            const container = document.getElementById('video-container');
+            container.style.display = "block";
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            video.srcObject = stream;
 
-    fetch(urlWithParams, {
-        method: "GET",
-        mode: "no-cors", // Required for Google Apps Script
-    })
-    .then(() => {
-        // Update the UI
-        document.getElementById('status').innerHTML = 
-            `<b style="color: green;">✅ Success!</b><br>ID: ${id}<br>Mode: ${currentMode}`;
-        
-        // Feedbacks
-        playBeep(880, 200); 
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
-    })
-    .catch(err => {
-        console.error("Scanning Error:", err);
-        document.getElementById('status').innerText = "Sync Error. Check connection.";
-    });
-}
+            const barcodeDetector = new BarcodeDetector();
+            const interval = setInterval(async () => {
+                try {
+                    const barcodes = await barcodeDetector.detect(video);
+                    if (barcodes.length > 0) {
+                        clearInterval(interval);
+                        stream.getTracks().forEach(t => t.stop());
+                        container.style.display = "none";
+                        processEntry(barcodes[0].rawValue);
+                    }
+                } catch (e) {}
+            }, 500);
+        }
 
-    document.body.addEventListener('click', () => {
-        startScanning();
-    }, { once: true });
-</script>
+        // --- MANUAL & SCORE LOGIC ---
+        function submitManual() {
+            const val = document.getElementById('manualId').value;
+            if (val) processEntry(val);
+        }
+
+        function processEntry(id) {
+            let score = "";
+            if (currentMode === "Recitation") {
+                score = prompt(`Enter Recitation Score for ID: ${id}`, "1");
+                if (score === null) return; // Cancelled
+            }
+            logToSheet(id, score);
+        }
+
+        function logToSheet(id, score) {
+            const finalURL = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(score)}`;
+            
+            fetch(finalURL, { method: "GET", mode: "no-cors" })
+            .then(() => {
+                document.getElementById('status').innerHTML = `<b style="color: green;">✅ Success!</b><br>ID: ${id}`;
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                document.getElementById('manualId').value = ""; // Clear manual input
+            });
+        }
+
+        window.addEventListener('click', startNFC, { once: true });
+    </script>
 </body>
 </html>

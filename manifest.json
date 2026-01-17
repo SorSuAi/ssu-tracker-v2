@@ -1,0 +1,21 @@
+{
+  "name": "SSU Instructor Tracker",
+  "short_name": "SSU Tracker",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#002147",
+  "theme_color": "#002147",
+  "description": "NFC Attendance and Recitation Tracker for SSU 2nd Sem",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

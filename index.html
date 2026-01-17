@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSU Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        button { padding: 20px; margin: 10px; width: 80%; font-size: 1.2em; cursor: pointer; }
+        .active { background-color: #4CAF50; color: white; }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+    </script>
+</head>
+<body>
+    <h2>SSU Attendance & Recitation</h2>
+    <p id="status">Tap a mode to start scanning...</p>
+    
+    <button id="btnAttendance" onclick="setMode('Attendance')">Mode: Attendance</button>
+    <button id="btnRecitation" onclick="setMode('Recitation')">Mode: Recitation</button>
+
+    <script>
+        let currentMode = "Attendance";
+        const scriptURL = "YOUR_APPS_SCRIPT_URL_HERE";
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('status').innerText = "Ready to scan for " + mode;
+        }
+
+        async function startScanning() {
+            if ('NDEFReader' in window) {
+                try {
+                    const ndef = new NDEFReader();
+                    await ndef.scan();
+                    document.getElementById('status').innerText = "Scanning active...";
+
+                    ndef.onreading = event => {
+                        const serialNumber = event.serialNumber;
+                        logToSheet(serialNumber);
+                    };
+                } catch (error) {
+                    alert("Error: " + error);
+                }
+            } else {
+                alert("Web NFC is not supported on this browser/device.");
+            }
+        }
+
+        function logToSheet(id) {
+            fetch(`${scriptURL}?id=${id}&type=${currentMode}`)
+                .then(() => {
+                    document.getElementById('status').innerText = `Logged ${currentMode} for ID: ${id}`;
+                    // Optional: Add haptic feedback
+                    if (navigator.vibrate) navigator.vibrate(200);
+                });
+        }
+
+        // Start scanning as soon as the page is interacted with
+        window.addEventListener('click', startScanning, { once: true });
+    </script>
+</body>
+</html>

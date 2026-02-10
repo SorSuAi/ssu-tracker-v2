@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>SSU Tracker Pro | All-in-One</title>
+    <title>SSU Tracker Pro | Unified System</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -13,12 +13,23 @@
         .btn-mode { flex: 1; background: #e0e0e0; max-width: 100px; }
         .btn-mode.active { background: #002147; color: white; }
         .btn-action { width: 90%; background: #28a745; color: white; font-size: 1.1em; padding: 15px; margin-top: 10px; }
+        
         #video-container { display: none; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
         video { width: 100%; display: block; }
         #scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 15px solid rgba(0,0,0,0.2); box-sizing: border-box; }
         .grid-line { border-bottom: 1px dashed rgba(255,255,255,0.4); width: 100%; }
-        #key-editor { display: none; text-align: left; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; margin: 10px 0; background: #fafafa; }
+
+        /* Grader Styles */
+        #key-editor { display: none; text-align: left; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; margin: 10px 0; background: #fafafa; border-radius: 8px; }
         .key-row { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #eee; padding: 2px 0; }
+        
+        /* History Table Styles */
+        .history-card { margin-top: 20px; border-top: 5px solid #6c757d; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85em; }
+        th { background: #eee; padding: 8px; }
+        td { border-bottom: 1px solid #eee; padding: 8px; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.8em; color: white; }
+        
         input[type="text"], select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; width: 85%; }
         #status { font-weight: bold; padding: 10px; border-radius: 5px; background: #fff; display: inline-block; margin-top: 10px; border: 1px solid #eee; }
     </style>
@@ -39,6 +50,7 @@
             <select id="itemCount" onchange="initAnswerKey()">
                 <option value="15">15 Items</option>
                 <option value="20">20 Items</option>
+                <option value="25">25 Items</option>
                 <option value="30" selected>30 Items</option>
                 <option value="45">45 Items</option>
                 <option value="60">60 Items</option>
@@ -59,6 +71,22 @@
         <button id="actionBtn" class="btn-action" onclick="handleAction()">Log Entry</button>
     </div>
 
+    <div class="card history-card">
+        <strong>🕒 Recent Activity</strong>
+        <table id="historyTable">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>ID</th>
+                    <th>Mode</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
     <canvas id="procCanvas" style="display:none;"></canvas>
 
     <script>
@@ -66,8 +94,9 @@
         const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; 
         let currentMode = "Attendance";
         let answerKey = [];
+        let logHistory = [];
 
-        // --- CORE FUNCTIONS ---
+        // --- CORE UI FUNCTIONS ---
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
@@ -82,14 +111,14 @@
             if(isGrader) {
                 initAnswerKey();
             } else {
-                document.getElementById('scanner-overlay').innerHTML = ''; // Clear grid for basic modes
+                document.getElementById('scanner-overlay').innerHTML = ''; 
             }
             playBeep(440, 50);
         }
 
         async function startCamera() {
             const video = document.getElementById('video');
-            if (video.srcObject) return; // Already running
+            if (video.srcObject) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
@@ -106,7 +135,6 @@
                 let score = prompt(`Enter Recitation Score for ${id}:`, "1");
                 if (score !== null) logData(id, score);
             } else {
-                // Attendance Mode
                 if (!id) return alert("Enter Student ID first");
                 logData(id, "Present");
             }
@@ -116,7 +144,7 @@
         function initAnswerKey() {
             const items = parseInt(document.getElementById('itemCount').value);
             const container = document.getElementById('key-editor');
-            container.innerHTML = '<strong>Answer Key (0=A, 1=B, 2=C, 3=D)</strong><br>';
+            container.innerHTML = '<strong>Key (0=A, 1=B, 2=C, 3=D)</strong><br>';
             answerKey = new Array(items).fill(0);
             
             for(let i=0; i<items; i++) {
@@ -172,30 +200,46 @@
                     options.push({ val: brightness, index: j });
                 }
                 options.sort((a, b) => a.val - b.val);
-                // If darkest bubble is dark enough and matches key
                 if (options[0].val < 120 && options[0].index === answerKey[i]) score++;
             }
 
-            const id = document.getElementById('manualId').value || "Unknown_Student";
+            const id = document.getElementById('manualId').value || "Unknown";
             logData(id, score);
-            document.getElementById('status').innerText = `ID: ${id} | Score: ${score}/${items}`;
-            playBeep(880, 150);
         }
 
-        // --- DATA LOGGING ---
+        // --- DATA & HISTORY LOGGING ---
         function logData(id, val) {
             const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(val)}`;
             
             document.getElementById('status').innerText = "Syncing...";
             fetch(url, { method: "GET", mode: "no-cors" })
                 .then(() => {
-                    document.getElementById('status').innerText = `✅ Success: ${id} (${val})`;
+                    document.getElementById('status').innerText = `✅ Success: ${id}`;
+                    addToHistory(id, currentMode, val);
                     playBeep(880, 100);
                 })
                 .catch(() => {
-                    document.getElementById('status').innerText = "📡 Offline: Saved to Local Cache";
-                    // Note: You can add IndexedDB logic here for offline storage
+                    document.getElementById('status').innerText = "📡 Saved Offline";
+                    addToHistory(id, currentMode, val + " (Offline)");
                 });
+        }
+
+        function addToHistory(id, mode, val) {
+            const table = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const row = table.insertRow(0);
+            
+            let color = mode === 'Grader' ? '#6f42c1' : (mode === 'Recitation' ? '#fd7e14' : '#007bff');
+            
+            row.innerHTML = `
+                <td>${now}</td>
+                <td><b>${id}</b></td>
+                <td><span class="badge" style="background:${color}">${mode}</span></td>
+                <td>${val}</td>
+            `;
+
+            // Keep only last 10 entries
+            if (table.rows.length > 10) table.deleteRow(10);
         }
 
         function playBeep(f, d) {

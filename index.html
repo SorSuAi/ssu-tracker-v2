@@ -61,7 +61,7 @@
                 <textarea id="bulkInput" placeholder="Paste ABCD string..." oninput="parseBulkAnswers()"></textarea>
                 <div id="key-list"></div>
             </div>
-            <button onclick="window.open('sheet.html', '_blank')" style="background:#007bff; color:white; width:90%; margin-top:5px; padding:8px;">📄 Open Printable Sheet</button>
+            <button onclick="openPrintableSheet()" style="background:#007bff; color:white; width:90%; margin-top:5px; padding:8px;">📄 Open Printable Sheet</button>
         </div>
     </div>
 
@@ -106,11 +106,17 @@
             
             if(isGrader) {
                 initAnswerKey();
+                document.getElementById('scanner-overlay').innerHTML = ''; // Specific layout handled by grader logic later
             } else {
                 document.getElementById('scanner-overlay').innerHTML = '';
                 startBarcodeLoop();
             }
             playBeep(440, 50);
+        }
+
+        function openPrintableSheet() {
+            const items = document.getElementById('itemCount').value;
+            window.open(`sheet.html?items=${items}`, '_blank');
         }
 
         async function startCamera() {

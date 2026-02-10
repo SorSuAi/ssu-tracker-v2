@@ -2,87 +2,129 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Printable 30-Item Answer Sheet</title>
+    <title>Professional 4-in-1 SSU Sheet</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 40px; }
-        .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 20px; padding-bottom: 10px; }
-        .student-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
-        .info-box { border-bottom: 1px solid #000; width: 45%; text-align: left; padding: 5px; }
-        
-        /* This container is sized to match the camera overlay proportions */
-        .bubble-container { 
-            display: grid; 
-            grid-template-rows: repeat(30, 1fr); 
-            height: 800px; /* Adjust height to match your phone's aspect ratio if needed */
-            max-width: 400px;
-            margin: 0 auto;
-            border: 1px solid #eee;
+        @page { size: 8.5in 13in; margin: 0.2in; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f0f0f0; }
+
+        .page-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            width: 8.5in;
+            height: 13in;
+            background: white;
             padding: 10px;
+            box-sizing: border-box;
+            margin: auto;
         }
 
-        .row { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; }
-        .q-num { width: 30px; font-weight: bold; font-size: 14px; }
-        .options { display: flex; justify-content: space-around; flex-grow: 1; }
+        .sheet {
+            border: 1.5px solid #000;
+            padding: 15px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .anchor { width: 25px; height: 25px; background-color: black !important; position: absolute; }
+        .tl { top: 5px; left: 5px; } .tr { top: 5px; right: 5px; }
+        .bl { bottom: 5px; left: 5px; } .br { bottom: 5px; right: 5px; }
+
+        h4 { margin: 2px 0 8px 0; font-size: 12px; text-align: center; }
         
+        .header-info { font-size: 9px; border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+        .header-info td { border: 1.5px solid black; padding: 4px; }
+
+        .main-flex { display: flex; gap: 12px; flex-grow: 1; align-items: flex-start; }
+
+        .id-section { width: 100px; font-size: 9px; text-align: center; font-weight: bold; }
+        .id-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; border: 1.5px solid black; padding: 3px; background: #fff; }
+        .id-col { display: flex; flex-direction: column; gap: 3px; }
+        .id-digit-box { border: 1px solid black; height: 12px; margin-bottom: 2px; background: white; }
+        .id-bubble { 
+            width: 10px; height: 10px; border: 1px solid black; border-radius: 50%; 
+            font-size: 7px; display: flex; align-items: center; justify-content: center; 
+        }
+
+        .q-section { flex-grow: 1; }
+        .row { display: flex; align-items: center; margin-bottom: 3px; font-size: 10px; }
+        .q-num { width: 18px; font-weight: bold; }
+        .bubbles { display: flex; gap: 10px; margin-left: 8px; }
         .bubble { 
-            width: 18px; 
-            height: 18px; 
-            border: 2px solid #333; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 10px;
-            color: #333;
+            width: 15px; height: 15px; border: 1.5px solid black; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 9px; font-weight: bold;
         }
 
         @media print {
+            body { background: none; }
             .no-print { display: none; }
-            body { padding: 0; margin: 20mm; }
+            .page-container { border: none; }
         }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>SSU EXAM ANSWER SHEET</h1>
-        <p>30-ITEM STANDARD GRID</p>
-    </div>
+<div class="no-print" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:100; background:white; padding:15px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.2); text-align: center;">
+    <p style="margin:0 0 10px 0; font-weight:bold;">Paper: Legal (8.5x13) | Enable Background Graphics</p>
+    <button onclick="window.print()" style="padding:12px 25px; background:#002147; color:white; font-size:16px; font-weight:bold; border:none; border-radius:5px; cursor:pointer;">
+        🖨️ Print 4-in-1 Sheets
+    </button>
+</div>
 
-    <div class="student-info">
-        <div class="info-box">NAME: _________________________</div>
-        <div class="info-box">STUDENT ID: ___________________</div>
-    </div>
+<div class="page-container" id="page"></div>
 
-    <div class="bubble-container" id="sheetGrid">
-        </div>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const totalQuestions = parseInt(urlParams.get('items')) || 30;
 
-    <div class="no-print" style="margin-top: 30px; text-align: center;">
-        <button onclick="window.print()" style="padding: 15px 30px; background: #002147; color: white; border-radius: 8px; cursor: pointer;">🖨️ Print Sheet</button>
-    </div>
-
-    <script>
-        const grid = document.getElementById('sheetGrid');
-        const letters = ['A', 'B', 'C', 'D'];
-        for (let i = 1; i <= 30; i++) {
-            let row = document.createElement('div');
-            row.className = 'row';
-            let num = document.createElement('div');
-            num.className = 'q-num';
-            num.innerText = i;
-            row.appendChild(num);
-
-            let options = document.createElement('div');
-            options.className = 'options';
-            letters.forEach(L => {
-                let b = document.createElement('div');
-                b.className = 'bubble';
-                b.innerText = L;
-                options.appendChild(b);
-            });
-            row.appendChild(options);
-            grid.appendChild(row);
+    function createSheet() {
+        let questionHtml = '';
+        for (let i = 1; i <= totalQuestions; i++) {
+            questionHtml += `
+                <div class="row">
+                    <div class="q-num">${i}</div>
+                    <div class="bubbles">
+                        <div class="bubble">A</div><div class="bubble">B</div>
+                        <div class="bubble">C</div><div class="bubble">D</div>
+                    </div>
+                </div>`;
         }
-    </script>
+
+        let idHtml = '';
+        for (let c = 0; c < 8; c++) {
+            idHtml += `
+                <div class="id-col">
+                    <div class="id-digit-box"></div>
+                    ${[0,1,2,3,4,5,6,7,8,9].map(r => `<div class="id-bubble">${r}</div>`).join('')}
+                </div>`;
+        }
+
+        return `
+        <div class="sheet">
+            <div class="anchor tl"></div><div class="anchor tr"></div>
+            <div class="anchor bl"></div><div class="anchor br"></div>
+            <h4>SSU ANSWER SHEET</h4>
+            <table class="header-info">
+                <tr><td colspan="2"><b>NAME:</b></td></tr>
+                <tr><td><b>COURSE/BLOCK:</b></td><td><b>DATE:</b></td></tr>
+            </table>
+            <div class="main-flex">
+                <div class="id-section">STUDENT ID<div class="id-grid">${idHtml}</div></div>
+                <div class="q-section" id="questionGrid">${questionHtml}</div>
+            </div>
+        </div>`;
+    }
+
+    const page = document.getElementById('page');
+    // Render 4 sheets
+    page.innerHTML = createSheet() + createSheet() + createSheet() + createSheet();
+</script>
+
 </body>
 </html>

@@ -1,269 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>SSU Tracker Pro</title>
+    <title>SSU Tracker Pro | Multi-Grader</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 10px; background: #f0f2f5; color: #333; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; border-top: 5px solid #002147; }
-        h2 { color: #002147; margin-bottom: 5px; }
-        .mode-container { display: flex; justify-content: space-around; gap: 10px; }
-        button { padding: 15px; margin: 5px; font-size: 1em; border-radius: 8px; border: none; cursor: pointer; transition: 0.3s; font-weight: bold; }
-        .btn-mode { width: 48%; background: #e0e0e0; }
-        .btn-mode.active { background: #002147; color: white; transform: scale(1.02); }
-        .btn-action { width: 85%; background: #007bff; color: white; }
-        .btn-sync { background: #28a745; color: white; width: 85%; }
-        input, select { padding: 12px; width: 85%; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 1em; }
-        #status { font-weight: bold; padding: 10px; border-radius: 5px; background: #fff; display: inline-block; margin-top: 10px; }
-        .enroll-box { border-top: 5px solid #ffc107; display: none; }
-        #searchBar { border: 2px solid #ffc107; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 10px; background: #f0f2f5; color: #333; margin: 0; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px; border-top: 5px solid #002147; }
+        h2 { color: #002147; margin: 10px 0; }
         
-        /* Camera UI for iPhone */
-        #video-container { display: none; width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; border: 3px solid #002147; }
-        video { width: 100%; height: auto; display: block; }
+        .mode-container { display: flex; justify-content: center; gap: 5px; margin-bottom: 10px; }
+        button { padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-mode { flex: 1; background: #e0e0e0; max-width: 100px; }
+        .btn-mode.active { background: #002147; color: white; }
+        
+        .btn-action { width: 90%; background: #28a745; color: white; font-size: 1.1em; padding: 15px; margin-top: 10px; }
+        
+        #video-container { display: none; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
+        video { width: 100%; display: block; }
+        
+        /* Grid Overlay */
+        #scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 15px solid rgba(0,0,0,0.2); box-sizing: border-box; }
+        .grid-line { border-bottom: 1px dashed rgba(255,255,255,0.4); width: 100%; }
+
+        #key-editor { display: none; text-align: left; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; margin: 10px 0; }
+        .key-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        input[type="text"], select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; width: 90%; }
+        #status { font-weight: bold; color: #002147; margin: 10px; }
     </style>
 </head>
 <body>
 
     <h2>🏛️ SSU Tracker Pro</h2>
     
-    <div class="card" style="border-top: 5px solid #28a745;">
-        <button class="btn-sync" onclick="syncOfflineData()">
-            🔄 Sync Data (<span id="offlineCount">0</span>)
-        </button>
-        <div id="status">Waiting for interaction...</div>
-    </div>
-
     <div class="card">
         <div class="mode-container">
-            <button id="btnAttendance" class="btn-mode active" onclick="setMode('Attendance')">Attendance</button>
-            <button id="btnRecitation" class="btn-mode" onclick="setMode('Recitation')">Recitation</button>
-        </div>
-        
-        <div style="margin-top: 15px; padding: 10px; background: #eee; border-radius: 8px;">
-            <label><b>Device Source:</b></label><br>
-            <input type="radio" name="source" id="sourceNFC" checked onclick="switchSource('NFC')"> NFC (Android)
-            <input type="radio" name="source" id="sourceCam" onclick="switchSource('CAM')"> Camera (iPhone)
+            <button id="btnAttendance" class="btn-mode active" onclick="setMode('Attendance')">Attend</button>
+            <button id="btnRecitation" class="btn-mode" onclick="setMode('Recitation')">Recit</button>
+            <button id="btnGrader" class="btn-mode" onclick="setMode('Grader')">Grader</button>
         </div>
 
-        <div style="margin-top: 15px;">
-            <input type="checkbox" id="enrollToggle" onclick="toggleEnrollmentUI()"> 
-            <label for="enrollToggle"><b>Enrollment Mode</b> (Map ID)</label>
+        <div id="graderControls" style="display:none;">
+            <label><b>Item Count:</b></label>
+            <select id="itemCount" onchange="initAnswerKey()">
+                <option value="15">15 Items</option>
+                <option value="20">20 Items</option>
+                <option value="25">25 Items</option>
+                <option value="30" selected>30 Items</option>
+                <option value="45">45 Items</option>
+                <option value="60">60 Items</option>
+            </select>
+            
+            <button onclick="toggleKeyEditor()" style="background:#6c757d; color:white; width:90%; margin-top:5px;">Edit Answer Key</button>
+            <div id="key-editor"></div>
         </div>
     </div>
 
     <div id="video-container">
-        <p style="margin: 5px; font-size: 0.8em;">Scanning Barcode/QR...</p>
         <video id="video" autoplay playsinline></video>
-    </div>
-
-    <div class="card enroll-box" id="enrollmentUI">
-        <h3>Assign ID to Student</h3>
-        <input type="text" id="searchBar" placeholder="🔍 Search student name..." onkeyup="filterStudents()">
-        <select id="studentSelector" size="5" style="height: 150px;">
-            <option value="">-- Start searching or refresh --</option>
-        </select>
-        <button onclick="fetchStudentList()" style="background:#6c757d; color:white; width:85%; margin-top:10px;">🔄 Refresh List</button>
+        <div id="scanner-overlay"></div>
     </div>
 
     <div class="card">
-        <input type="text" id="manualId" placeholder="Manual Student ID / Name">
-        <button class="btn-action" style="background:#4CAF50;" onclick="submitManual()">Log Entry</button>
+        <div id="status">Ready</div>
+        <input type="text" id="manualId" placeholder="Scan or Enter Student ID">
+        <button id="actionBtn" class="btn-action" onclick="handleAction()">Submit Entry</button>
     </div>
 
-    <script>
-        const scriptURL = "https://script.google.com/macros/s/AKfycbx5sZG0zIJhkB8P6LjKolCrwXXuDzfsrYWU8enK4Ln_cZS9UwcBX__PHLixbYCjnoKJ/exec";
-        let currentMode = "Attendance";
-        let isEnrolling = false;
-        let allUnenrolledStudents = [];
-        let scannerActive = false;
+    <canvas id="procCanvas" style="display:none;"></canvas>
 
-        // 1. DATABASE (IndexedDB)
-        const dbReq = indexedDB.open("SSU_Tracker_DB", 1);
-        let db;
-        dbReq.onupgradeneeded = e => { e.target.result.createObjectStore("outbox", { autoIncrement: true }); };
-        dbReq.onsuccess = e => { db = e.target.result; updateOfflineCount(); };
+    <script>
+        const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; // Replace with your deployment URL
+        let currentMode = "Attendance";
+        let answerKey = [];
 
         function setMode(mode) {
             currentMode = mode;
-            document.getElementById('btnAttendance').className = (mode === 'Attendance' ? 'btn-mode active' : 'btn-mode');
-            document.getElementById('btnRecitation').className = (mode === 'Recitation' ? 'btn-mode active' : 'btn-mode');
-            playBeep(440, 50);
+            document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn' + mode).classList.add('active');
+            
+            const isGrader = mode === 'Grader';
+            document.getElementById('graderControls').style.display = isGrader ? 'block' : 'none';
+            document.getElementById('video-container').style.display = 'block';
+            document.getElementById('actionBtn').innerText = isGrader ? "Scan & Grade" : "Log Entry";
+            
+            startCamera();
+            if(isGrader) initAnswerKey();
         }
 
-        function switchSource(type) {
-            if (type === 'CAM') {
-                document.getElementById('video-container').style.display = 'block';
-                document.getElementById('status').innerText = "Camera Mode Active";
-                startCamera();
-            } else {
-                document.getElementById('video-container').style.display = 'none';
-                document.getElementById('status').innerText = "NFC Mode Active (Android)";
-                stopCamera();
-                initNFC();
+        function initAnswerKey() {
+            const items = parseInt(document.getElementById('itemCount').value);
+            const container = document.getElementById('key-editor');
+            container.innerHTML = '<b>Set Correct Answers (A=0, B=1, C=2, D=3):</b><br>';
+            answerKey = new Array(items).fill(0);
+            
+            for(let i=0; i<items; i++) {
+                const row = document.createElement('div');
+                row.className = 'key-row';
+                row.innerHTML = `<span>Q${i+1}:</span> 
+                    <select onchange="updateKey(${i}, this.value)">
+                        <option value="0">A</option><option value="1">B</option>
+                        <option value="2">C</option><option value="3">D</option>
+                    </select>`;
+                container.appendChild(row);
+            }
+            updateGridOverlay(items);
+        }
+
+        function updateKey(index, val) { answerKey[index] = parseInt(val); }
+        function toggleKeyEditor() {
+            const editor = document.getElementById('key-editor');
+            editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateGridOverlay(items) {
+            const overlay = document.getElementById('scanner-overlay');
+            overlay.innerHTML = '';
+            for(let i=0; i<items; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line';
+                line.style.height = (100 / items) + "%";
+                overlay.appendChild(line);
             }
         }
 
-        function toggleEnrollmentUI() {
-            isEnrolling = document.getElementById('enrollToggle').checked;
-            document.getElementById('enrollmentUI').style.display = isEnrolling ? 'block' : 'none';
-            if (isEnrolling && allUnenrolledStudents.length === 0) fetchStudentList();
-        }
-
-        // 2. CAMERA LOGIC (For iPhone Barcodes)
         async function startCamera() {
             const video = document.getElementById('video');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
-                // Barcode Detection API (Works in iOS 17+)
-                if ('BarcodeDetector' in window) {
-                    const detector = new BarcodeDetector();
-                    const scan = async () => {
-                        if (document.getElementById('sourceCam').checked) {
-                            try {
-                                const barcodes = await detector.detect(video);
-                                if (barcodes.length > 0) {
-                                    const id = barcodes[0].rawValue;
-                                    playBeep(880, 150);
-                                    if (isEnrolling) { handleEnroll(id); } else { processEntry(id); }
-                                    // Cool-off period so it doesn't scan the same ID 100 times
-                                    setTimeout(() => { requestAnimationFrame(scan); }, 2000);
-                                    return;
-                                }
-                            } catch (e) {}
-                            requestAnimationFrame(scan);
-                        }
-                    };
-                    scan();
-                } else {
-                    document.getElementById('status').innerText = "Browser doesn't support Barcode API";
-                }
-            } catch (err) {
-                document.getElementById('status').innerText = "Camera access denied.";
+            } catch (err) { alert("Please allow camera access."); }
+        }
+
+        function handleAction() {
+            if (currentMode === 'Grader') processGrader();
+            else {
+                const id = document.getElementById('manualId').value;
+                if(id) logData(id, "");
             }
         }
 
-        function stopCamera() {
+        function processGrader() {
             const video = document.getElementById('video');
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
+            const canvas = document.getElementById('procCanvas');
+            const ctx = canvas.getContext('2d');
+            const items = answerKey.length;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+
+            let score = 0;
+            const stepY = canvas.height / (items + 1);
+            const stepX = canvas.width / 5;
+
+            for (let i = 0; i < items; i++) {
+                let options = [];
+                for (let j = 0; j < 4; j++) {
+                    const x = (j + 1) * stepX;
+                    const y = (i + 1) * stepY;
+                    const imgData = ctx.getImageData(x, y, 5, 5).data;
+                    let brightness = (imgData[0] + imgData[1] + imgData[2]) / 3;
+                    options.push({ val: brightness, index: j });
+                }
+                
+                // Find darkest bubble in row
+                options.sort((a, b) => a.val - b.val);
+                if (options[0].val < 120 && options[0].index === answerKey[i]) {
+                    score++;
+                }
             }
-        }
 
-        // --- Rest of your original logic (Fetch, Filter, NFC, Sync) remains the same ---
-        async function fetchStudentList() {
-            document.getElementById('status').innerText = "Fetching roster...";
-            try {
-                const res = await fetch(`${scriptURL}?action=fetchList`);
-                allUnenrolledStudents = await res.json();
-                renderStudentList(allUnenrolledStudents);
-                document.getElementById('status').innerText = "Roster updated.";
-            } catch (e) { document.getElementById('status').innerText = "Fetch Error"; }
-        }
-
-        function renderStudentList(list) {
-            const selector = document.getElementById('studentSelector');
-            selector.innerHTML = '';
-            list.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.name;
-                opt.innerText = `${s.name} (${s.section})`;
-                selector.appendChild(opt);
-            });
-        }
-
-        function filterStudents() {
-            const term = document.getElementById('searchBar').value.toLowerCase();
-            const filtered = allUnenrolledStudents.filter(s => s.name.toLowerCase().includes(term));
-            renderStudentList(filtered);
-        }
-
-        async function initNFC() {
-            if ('NDEFReader' in window) {
-                const ndef = new NDEFReader();
-                try {
-                    await ndef.scan();
-                    ndef.onreading = event => {
-                        const nfcId = event.serialNumber;
-                        if (isEnrolling) { handleEnroll(nfcId); } else { processEntry(nfcId); }
-                    };
-                } catch(e) { document.getElementById('status').innerText = "NFC error or denied."; }
-            }
-        }
-
-        async function handleEnroll(id) {
-            const name = document.getElementById('studentSelector').value;
-            if (!name) return alert("Select a student first!");
-            document.getElementById('status').innerText = "Mapping " + id + "...";
-            try {
-                const res = await fetch(scriptURL, { method: "POST", body: JSON.stringify({ name, nfc: id }) });
-                alert(await res.text());
-                fetchStudentList(); 
-            } catch (e) { alert("Mapping failed."); }
-        }
-
-        function processEntry(id) {
-            let score = (currentMode === "Recitation") ? prompt(`Score for ${id}:`, "1") : "";
-            if (currentMode === "Recitation" && score === null) return;
-            logData(id, score);
+            const studentId = document.getElementById('manualId').value || "Unknown";
+            logData(studentId, score);
+            document.getElementById('status').innerText = `ID: ${studentId} | Score: ${score}/${items}`;
+            playBeep(880, 150);
         }
 
         function logData(id, score) {
-            const entry = { id, type: currentMode, score, time: new Date().toISOString() };
             const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(score)}`;
-            fetch(url, { method: "GET", mode: "no-cors" })
-                .then(() => { 
-                    document.getElementById('status').innerHTML = "✅ Online: " + id;
-                    playBeep(880, 150);
-                })
-                .catch(() => {
-                    const store = db.transaction("outbox", "readwrite").objectStore("outbox");
-                    store.add(entry);
-                    updateOfflineCount();
-                    document.getElementById('status').innerHTML = "📡 Offline: Saved Locally";
-                    playBeep(440, 200);
-                });
-        }
-
-        async function syncOfflineData() {
-            const store = db.transaction("outbox", "readwrite").objectStore("outbox");
-            const records = await new Promise(r => { store.getAll().onsuccess = e => r(e.target.result); });
-            if (records.length === 0) return alert("Nothing to sync.");
-            document.getElementById('status').innerText = "Syncing...";
-            for (const rec of records) {
-                const url = `${scriptURL}?id=${encodeURIComponent(rec.id)}&type=${encodeURIComponent(rec.type)}&score=${encodeURIComponent(rec.score)}`;
-                await fetch(url, { method: "GET", mode: "no-cors" });
-            }
-            db.transaction("outbox", "readwrite").objectStore("outbox").clear();
-            updateOfflineCount();
-            alert("All data synced!");
-        }
-
-        function updateOfflineCount() {
-            const store = db.transaction("outbox", "readonly").objectStore("outbox");
-            store.count().onsuccess = e => { document.getElementById('offlineCount').innerText = e.target.result; };
+            fetch(url, { method: "GET", mode: "no-cors" });
+            document.getElementById('status').innerText = "Logged: " + id;
         }
 
         function playBeep(f, d) {
-            const a = new (window.AudioContext || window.webkitAudioContext)();
+            const a = new AudioContext();
             const o = a.createOscillator();
-            const g = a.createGain();
             o.frequency.value = f;
-            o.connect(g); g.connect(a.destination);
-            g.gain.value = 0.05;
+            o.connect(a.destination);
             o.start(); o.stop(a.currentTime + d/1000);
         }
-
-        function submitManual() {
-            const val = document.getElementById('manualId').value;
-            if (val) processEntry(val);
-        }
-
-        window.addEventListener('click', () => {
-            if (document.getElementById('sourceNFC').checked) initNFC();
-        }, { once: true });
     </script>
 </body>
 </html>

@@ -14,18 +14,16 @@
         .btn-mode.active { background: #002147; color: white; }
         .btn-action { width: 90%; background: #28a745; color: white; font-size: 1.1em; padding: 15px; margin-top: 10px; }
         
-        #video-container { display: none; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
-        video { width: 100%; display: block; }
+        #video-container { display: block; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
+        video { width: 100%; display: block; background: #000; }
         #scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 15px solid rgba(0,0,0,0.2); box-sizing: border-box; }
         .grid-line { border-bottom: 1px dashed rgba(255,255,255,0.4); width: 100%; }
 
-        /* Key Editor & Bulk Upload */
         #key-editor-container { display: none; margin-top: 10px; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
         #key-list { max-height: 150px; overflow-y: auto; text-align: left; margin-bottom: 10px; font-size: 0.9em; }
         .key-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 3px 0; }
         textarea { width: 90%; height: 60px; font-family: monospace; padding: 5px; border-radius: 5px; border: 1px solid #ccc; }
         
-        /* History Table */
         .history-card { margin-top: 20px; border-top: 5px solid #6c757d; text-align: left; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.8em; }
         th { background: #eee; padding: 8px; text-align: left; }
@@ -59,8 +57,8 @@
             <button onclick="toggleKeyEditor()" style="background:#6c757d; color:white; width:90%; margin-top:5px; padding:8px;">⚙️ Manage Answer Key</button>
             
             <div id="key-editor-container">
-                <strong>Bulk Paste Answers (e.g. ABCD...)</strong><br>
-                <textarea id="bulkInput" placeholder="Paste string of answers here..." oninput="parseBulkAnswers()"></textarea>
+                <strong>Bulk Paste (e.g. ABCD...)</strong><br>
+                <textarea id="bulkInput" placeholder="Paste ABCD string..." oninput="parseBulkAnswers()"></textarea>
                 <div id="key-list"></div>
             </div>
         </div>
@@ -72,8 +70,8 @@
     </div>
 
     <div class="card">
-        <div id="status">Ready</div>
-        <input type="text" id="manualId" placeholder="Manual Student ID">
+        <div id="status">Tap Screen to Enable Beep</div>
+        <input type="text" id="manualId" placeholder="Manual ID / Scan Result">
         <button id="actionBtn" class="btn-action" onclick="handleAction()">Log Entry</button>
     </div>
 
@@ -93,7 +91,7 @@
         const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; 
         let currentMode = "Attendance";
         let answerKey = [];
-
+        let isScanning = false;
         const charMap = { 'A':0, 'B':1, 'C':2, 'D':3, '0':0, '1':1, '2':2, '3':3 };
 
         function setMode(mode) {
@@ -103,21 +101,47 @@
             
             const isGrader = (mode === 'Grader');
             document.getElementById('graderControls').style.display = isGrader ? 'block' : 'none';
-            document.getElementById('video-container').style.display = 'block';
             document.getElementById('actionBtn').innerText = isGrader ? "Scan & Grade" : "Log Entry";
             
-            startCamera();
-            if(isGrader) initAnswerKey();
-            else document.getElementById('scanner-overlay').innerHTML = '';
+            if(isGrader) {
+                initAnswerKey();
+            } else {
+                document.getElementById('scanner-overlay').innerHTML = '';
+                startBarcodeLoop();
+            }
+            playBeep(440, 50);
         }
 
         async function startCamera() {
             const video = document.getElementById('video');
-            if (video.srcObject) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
-            } catch (err) { alert("Camera Error: Access denied."); }
+                video.onloadedmetadata = () => { if(currentMode !== 'Grader') startBarcodeLoop(); };
+            } catch (err) { document.getElementById('status').innerText = "Camera Access Required"; }
+        }
+
+        async function startBarcodeLoop() {
+            if (isScanning || !('BarcodeDetector' in window)) return;
+            isScanning = true;
+            const detector = new BarcodeDetector();
+            const video = document.getElementById('video');
+
+            async function scan() {
+                if (currentMode === 'Grader') { isScanning = false; return; }
+                try {
+                    const barcodes = await detector.detect(video);
+                    if (barcodes.length > 0) {
+                        const id = barcodes[0].rawValue;
+                        document.getElementById('manualId').value = id;
+                        handleAction();
+                        setTimeout(() => requestAnimationFrame(scan), 3000); 
+                        return;
+                    }
+                } catch (e) {}
+                requestAnimationFrame(scan);
+            }
+            scan();
         }
 
         function handleAction() {
@@ -125,16 +149,83 @@
             if (currentMode === 'Grader') {
                 processGrader();
             } else if (currentMode === 'Recitation') {
-                if (!id) return alert("Enter ID");
-                let s = prompt("Score:", "1");
+                if (!id) return alert("Enter Student ID");
+                let s = prompt(`Score for ${id}:`, "1");
                 if (s !== null) logData(id, s);
             } else {
-                if (!id) return alert("Enter ID");
+                if (!id) return alert("Enter Student ID");
                 logData(id, "Present");
             }
         }
 
-        // --- GRADER & KEY LOGIC ---
+        function processGrader() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('procCanvas');
+            const ctx = canvas.getContext('2d');
+            const items = answerKey.length;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+
+            let score = 0;
+            const stepY = canvas.height / (items + 1);
+            const stepX = canvas.width / 5;
+
+            for (let i = 0; i < items; i++) {
+                let options = [];
+                for (let j = 0; j < 4; j++) {
+                    const x = (j + 1) * stepX;
+                    const y = (i + 1) * stepY;
+                    const img = ctx.getImageData(x, y, 5, 5).data;
+                    options.push({ val: (img[0]+img[1]+img[2])/3, index: j });
+                }
+                options.sort((a, b) => a.val - b.val);
+                if (options[0].val < 115 && options[0].index === answerKey[i]) score++;
+            }
+            logData(document.getElementById('manualId').value || "Auto_Scan", score);
+        }
+
+        function logData(id, val) {
+            const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(val)}`;
+            document.getElementById('status').innerText = "Syncing...";
+            fetch(url, { method: "GET", mode: "no-cors" })
+                .then(() => {
+                    document.getElementById('status').innerText = "✅ Sent: " + id;
+                    addToHistory(id, currentMode, val);
+                    playBeep(880, 150);
+                })
+                .catch(() => {
+                    document.getElementById('status').innerText = "📡 Offline Save";
+                    addToHistory(id, currentMode, val + " (Offline)");
+                    playBeep(440, 200);
+                });
+        }
+
+        function addToHistory(id, mode, val) {
+            const table = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            const row = table.insertRow(0);
+            const colors = { 'Grader': '#6f42c1', 'Recitation': '#fd7e14', 'Attendance': '#007bff' };
+            row.innerHTML = `<td>${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+                <td><b>${id}</b></td>
+                <td><span class="badge" style="background:${colors[mode]}">${mode}</span></td>
+                <td>${val}</td>`;
+            if (table.rows.length > 8) table.deleteRow(8);
+        }
+
+        function playBeep(f, d) {
+            try {
+                const a = new (window.AudioContext || window.webkitAudioContext)();
+                if (a.state === 'suspended') a.resume();
+                const o = a.createOscillator();
+                const g = a.createGain();
+                o.frequency.value = f;
+                o.connect(g); g.connect(a.destination);
+                g.gain.value = 0.1;
+                o.start(); o.stop(a.currentTime + d/1000);
+            } catch(e) { console.log("Audio blocked"); }
+        }
+
         function initAnswerKey() {
             const items = parseInt(document.getElementById('itemCount').value);
             answerKey = new Array(items).fill(0);
@@ -183,61 +274,8 @@
             }
         }
 
-        function processGrader() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('procCanvas');
-            const ctx = canvas.getContext('2d');
-            const items = answerKey.length;
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-
-            let score = 0;
-            const stepY = canvas.height / (items + 1);
-            const stepX = canvas.width / 5;
-
-            for (let i = 0; i < items; i++) {
-                let options = [];
-                for (let j = 0; j < 4; j++) {
-                    const x = (j + 1) * stepX;
-                    const y = (i + 1) * stepY;
-                    const img = ctx.getImageData(x, y, 5, 5).data;
-                    options.push({ val: (img[0]+img[1]+img[2])/3, index: j });
-                }
-                options.sort((a, b) => a.val - b.val);
-                if (options[0].val < 115 && options[0].index === answerKey[i]) score++;
-            }
-
-            const id = document.getElementById('manualId').value || "Auto_Scan";
-            logData(id, score);
-        }
-
-        function logData(id, val) {
-            const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(val)}`;
-            document.getElementById('status').innerText = "Syncing...";
-            
-            fetch(url, { method: "GET", mode: "no-cors" })
-                .then(() => {
-                    document.getElementById('status').innerText = "✅ Sent: " + id;
-                    addToHistory(id, currentMode, val);
-                })
-                .catch(() => {
-                    document.getElementById('status').innerText = "📡 Offline Save";
-                    addToHistory(id, currentMode, val + " (Offline)");
-                });
-        }
-
-        function addToHistory(id, mode, val) {
-            const table = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
-            const row = table.insertRow(0);
-            const colors = { 'Grader': '#6f42c1', 'Recitation': '#fd7e14', 'Attendance': '#007bff' };
-            row.innerHTML = `<td>${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
-                <td><b>${id}</b></td>
-                <td><span class="badge" style="background:${colors[mode]}">${mode}</span></td>
-                <td>${val}</td>`;
-            if (table.rows.length > 8) table.deleteRow(8);
-        }
+        window.onload = startCamera;
+        document.body.addEventListener('click', () => { if(currentMode !== 'Grader') startBarcodeLoop(); }, {once: false});
     </script>
 </body>
 </html>

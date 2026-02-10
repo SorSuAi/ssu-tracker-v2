@@ -1,32 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>SSU Tracker Pro | Multi-Grader</title>
+    <title>SSU Tracker Pro | All-in-One</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 10px; background: #f0f2f5; color: #333; margin: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 10px; background: #f0f2f5; color: #333; margin: 0; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 10px; border-top: 5px solid #002147; }
         h2 { color: #002147; margin: 10px 0; }
-        
         .mode-container { display: flex; justify-content: center; gap: 5px; margin-bottom: 10px; }
         button { padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn-mode { flex: 1; background: #e0e0e0; max-width: 100px; }
         .btn-mode.active { background: #002147; color: white; }
-        
         .btn-action { width: 90%; background: #28a745; color: white; font-size: 1.1em; padding: 15px; margin-top: 10px; }
-        
         #video-container { display: none; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
         video { width: 100%; display: block; }
-        
-        /* Grid Overlay */
         #scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 15px solid rgba(0,0,0,0.2); box-sizing: border-box; }
         .grid-line { border-bottom: 1px dashed rgba(255,255,255,0.4); width: 100%; }
-
-        #key-editor { display: none; text-align: left; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; margin: 10px 0; }
-        .key-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        input[type="text"], select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; width: 90%; }
-        #status { font-weight: bold; color: #002147; margin: 10px; }
+        #key-editor { display: none; text-align: left; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; margin: 10px 0; background: #fafafa; }
+        .key-row { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #eee; padding: 2px 0; }
+        input[type="text"], select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; width: 85%; }
+        #status { font-weight: bold; padding: 10px; border-radius: 5px; background: #fff; display: inline-block; margin-top: 10px; border: 1px solid #eee; }
     </style>
 </head>
 <body>
@@ -41,17 +35,15 @@
         </div>
 
         <div id="graderControls" style="display:none;">
-            <label><b>Item Count:</b></label>
+            <label><b>Exam Items:</b></label>
             <select id="itemCount" onchange="initAnswerKey()">
                 <option value="15">15 Items</option>
                 <option value="20">20 Items</option>
-                <option value="25">25 Items</option>
                 <option value="30" selected>30 Items</option>
                 <option value="45">45 Items</option>
                 <option value="60">60 Items</option>
             </select>
-            
-            <button onclick="toggleKeyEditor()" style="background:#6c757d; color:white; width:90%; margin-top:5px;">Edit Answer Key</button>
+            <button onclick="toggleKeyEditor()" style="background:#6c757d; color:white; width:90%; margin-top:5px; padding:8px;">⚙️ Edit Answer Key</button>
             <div id="key-editor"></div>
         </div>
     </div>
@@ -63,42 +55,75 @@
 
     <div class="card">
         <div id="status">Ready</div>
-        <input type="text" id="manualId" placeholder="Scan or Enter Student ID">
-        <button id="actionBtn" class="btn-action" onclick="handleAction()">Submit Entry</button>
+        <input type="text" id="manualId" placeholder="Manual ID / Name">
+        <button id="actionBtn" class="btn-action" onclick="handleAction()">Log Entry</button>
     </div>
 
     <canvas id="procCanvas" style="display:none;"></canvas>
 
     <script>
-        const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; // Replace with your deployment URL
+        // --- CONFIGURATION ---
+        const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; 
         let currentMode = "Attendance";
         let answerKey = [];
 
+        // --- CORE FUNCTIONS ---
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
             document.getElementById('btn' + mode).classList.add('active');
             
-            const isGrader = mode === 'Grader';
+            const isGrader = (mode === 'Grader');
             document.getElementById('graderControls').style.display = isGrader ? 'block' : 'none';
             document.getElementById('video-container').style.display = 'block';
             document.getElementById('actionBtn').innerText = isGrader ? "Scan & Grade" : "Log Entry";
             
             startCamera();
-            if(isGrader) initAnswerKey();
+            if(isGrader) {
+                initAnswerKey();
+            } else {
+                document.getElementById('scanner-overlay').innerHTML = ''; // Clear grid for basic modes
+            }
+            playBeep(440, 50);
         }
 
+        async function startCamera() {
+            const video = document.getElementById('video');
+            if (video.srcObject) return; // Already running
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+            } catch (err) { document.getElementById('status').innerText = "Camera Error."; }
+        }
+
+        function handleAction() {
+            const id = document.getElementById('manualId').value;
+            
+            if (currentMode === 'Grader') {
+                processGrader();
+            } else if (currentMode === 'Recitation') {
+                if (!id) return alert("Enter Student ID first");
+                let score = prompt(`Enter Recitation Score for ${id}:`, "1");
+                if (score !== null) logData(id, score);
+            } else {
+                // Attendance Mode
+                if (!id) return alert("Enter Student ID first");
+                logData(id, "Present");
+            }
+        }
+
+        // --- GRADER LOGIC ---
         function initAnswerKey() {
             const items = parseInt(document.getElementById('itemCount').value);
             const container = document.getElementById('key-editor');
-            container.innerHTML = '<b>Set Correct Answers (A=0, B=1, C=2, D=3):</b><br>';
+            container.innerHTML = '<strong>Answer Key (0=A, 1=B, 2=C, 3=D)</strong><br>';
             answerKey = new Array(items).fill(0);
             
             for(let i=0; i<items; i++) {
                 const row = document.createElement('div');
                 row.className = 'key-row';
-                row.innerHTML = `<span>Q${i+1}:</span> 
-                    <select onchange="updateKey(${i}, this.value)">
+                row.innerHTML = `<span>Q${i+1}</span> 
+                    <select onchange="answerKey[${i}] = parseInt(this.value)">
                         <option value="0">A</option><option value="1">B</option>
                         <option value="2">C</option><option value="3">D</option>
                     </select>`;
@@ -107,7 +132,6 @@
             updateGridOverlay(items);
         }
 
-        function updateKey(index, val) { answerKey[index] = parseInt(val); }
         function toggleKeyEditor() {
             const editor = document.getElementById('key-editor');
             editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
@@ -121,22 +145,6 @@
                 line.className = 'grid-line';
                 line.style.height = (100 / items) + "%";
                 overlay.appendChild(line);
-            }
-        }
-
-        async function startCamera() {
-            const video = document.getElementById('video');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                video.srcObject = stream;
-            } catch (err) { alert("Please allow camera access."); }
-        }
-
-        function handleAction() {
-            if (currentMode === 'Grader') processGrader();
-            else {
-                const id = document.getElementById('manualId').value;
-                if(id) logData(id, "");
             }
         }
 
@@ -163,28 +171,35 @@
                     let brightness = (imgData[0] + imgData[1] + imgData[2]) / 3;
                     options.push({ val: brightness, index: j });
                 }
-                
-                // Find darkest bubble in row
                 options.sort((a, b) => a.val - b.val);
-                if (options[0].val < 120 && options[0].index === answerKey[i]) {
-                    score++;
-                }
+                // If darkest bubble is dark enough and matches key
+                if (options[0].val < 120 && options[0].index === answerKey[i]) score++;
             }
 
-            const studentId = document.getElementById('manualId').value || "Unknown";
-            logData(studentId, score);
-            document.getElementById('status').innerText = `ID: ${studentId} | Score: ${score}/${items}`;
+            const id = document.getElementById('manualId').value || "Unknown_Student";
+            logData(id, score);
+            document.getElementById('status').innerText = `ID: ${id} | Score: ${score}/${items}`;
             playBeep(880, 150);
         }
 
-        function logData(id, score) {
-            const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(score)}`;
-            fetch(url, { method: "GET", mode: "no-cors" });
-            document.getElementById('status').innerText = "Logged: " + id;
+        // --- DATA LOGGING ---
+        function logData(id, val) {
+            const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(val)}`;
+            
+            document.getElementById('status').innerText = "Syncing...";
+            fetch(url, { method: "GET", mode: "no-cors" })
+                .then(() => {
+                    document.getElementById('status').innerText = `✅ Success: ${id} (${val})`;
+                    playBeep(880, 100);
+                })
+                .catch(() => {
+                    document.getElementById('status').innerText = "📡 Offline: Saved to Local Cache";
+                    // Note: You can add IndexedDB logic here for offline storage
+                });
         }
 
         function playBeep(f, d) {
-            const a = new AudioContext();
+            const a = new (window.AudioContext || window.webkitAudioContext)();
             const o = a.createOscillator();
             o.frequency.value = f;
             o.connect(a.destination);

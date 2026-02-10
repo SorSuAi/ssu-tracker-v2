@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Printable 30-Item Answer Sheet</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; }
+        .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 20px; padding-bottom: 10px; }
+        .student-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .info-box { border-bottom: 1px solid #000; width: 45%; text-align: left; padding: 5px; }
+        
+        /* This container is sized to match the camera overlay proportions */
+        .bubble-container { 
+            display: grid; 
+            grid-template-rows: repeat(30, 1fr); 
+            height: 800px; /* Adjust height to match your phone's aspect ratio if needed */
+            max-width: 400px;
+            margin: 0 auto;
+            border: 1px solid #eee;
+            padding: 10px;
+        }
+
+        .row { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; }
+        .q-num { width: 30px; font-weight: bold; font-size: 14px; }
+        .options { display: flex; justify-content: space-around; flex-grow: 1; }
+        
+        .bubble { 
+            width: 18px; 
+            height: 18px; 
+            border: 2px solid #333; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 10px;
+            color: #333;
+        }
+
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; margin: 20mm; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>SSU EXAM ANSWER SHEET</h1>
+        <p>30-ITEM STANDARD GRID</p>
+    </div>
+
+    <div class="student-info">
+        <div class="info-box">NAME: _________________________</div>
+        <div class="info-box">STUDENT ID: ___________________</div>
+    </div>
+
+    <div class="bubble-container" id="sheetGrid">
+        </div>
+
+    <div class="no-print" style="margin-top: 30px; text-align: center;">
+        <button onclick="window.print()" style="padding: 15px 30px; background: #002147; color: white; border-radius: 8px; cursor: pointer;">🖨️ Print Sheet</button>
+    </div>
+
+    <script>
+        const grid = document.getElementById('sheetGrid');
+        const letters = ['A', 'B', 'C', 'D'];
+        for (let i = 1; i <= 30; i++) {
+            let row = document.createElement('div');
+            row.className = 'row';
+            let num = document.createElement('div');
+            num.className = 'q-num';
+            num.innerText = i;
+            row.appendChild(num);
+
+            let options = document.createElement('div');
+            options.className = 'options';
+            letters.forEach(L => {
+                let b = document.createElement('div');
+                b.className = 'bubble';
+                b.innerText = L;
+                options.appendChild(b);
+            });
+            row.appendChild(options);
+            grid.appendChild(row);
+        }
+    </script>
+</body>
+</html>

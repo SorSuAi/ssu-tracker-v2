@@ -61,6 +61,7 @@
                 <textarea id="bulkInput" placeholder="Paste ABCD string..." oninput="parseBulkAnswers()"></textarea>
                 <div id="key-list"></div>
             </div>
+            <button onclick="window.open('sheet.html', '_blank')" style="background:#007bff; color:white; width:90%; margin-top:5px; padding:8px;">📄 Open Printable Sheet</button>
         </div>
     </div>
 
@@ -88,7 +89,7 @@
     <canvas id="procCanvas" style="display:none;"></canvas>
 
     <script>
-        const scriptURL = "YOUR_GOOGLE_SCRIPT_URL"; 
+        const scriptURL = "https://script.google.com/macros/s/AKfycbx5sZG0zIJhkB8P6LjKolCrwXXuDzfsrYWU8enK4Ln_cZS9UwcBX__PHLixbYCjnoKJ/exec"; 
         let currentMode = "Attendance";
         let answerKey = [];
         let isScanning = false;

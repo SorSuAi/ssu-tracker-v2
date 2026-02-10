@@ -16,7 +16,21 @@
         
         #video-container { display: block; width: 90%; max-width: 400px; margin: 10px auto; border-radius: 12px; overflow: hidden; position: relative; border: 3px solid #002147; }
         video { width: 100%; display: block; background: #000; }
-        #scanner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border: 15px solid rgba(0,0,0,0.2); box-sizing: border-box; }
+        
+        /* Interactive Scanner Overlay */
+        #scanner-overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none; border: 15px solid rgba(255, 0, 0, 0.3); /* Default Red */
+            transition: border-color 0.3s ease; box-sizing: border-box; 
+        }
+        #scanner-overlay.ready { border-color: rgba(40, 167, 69, 0.6); } /* Green Light */
+        
+        #scan-prompt {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.6); color: white; padding: 5px 15px; border-radius: 20px;
+            font-size: 0.8em; font-weight: bold; pointer-events: none;
+        }
+
         .grid-line { border-bottom: 1px dashed rgba(255,255,255,0.4); width: 100%; }
 
         #key-editor-container { display: none; margin-top: 10px; background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
@@ -57,7 +71,6 @@
             <button onclick="toggleKeyEditor()" style="background:#6c757d; color:white; width:90%; margin-top:5px; padding:8px;">⚙️ Manage Answer Key</button>
             
             <div id="key-editor-container">
-                <strong>Bulk Paste (e.g. ABCD...)</strong><br>
                 <textarea id="bulkInput" placeholder="Paste ABCD string..." oninput="parseBulkAnswers()"></textarea>
                 <div id="key-list"></div>
             </div>
@@ -68,10 +81,11 @@
     <div id="video-container">
         <video id="video" autoplay playsinline></video>
         <div id="scanner-overlay"></div>
+        <div id="scan-prompt">ALIGNING...</div>
     </div>
 
     <div class="card">
-        <div id="status">Tap Screen to Enable Beep</div>
+        <div id="status">Ready</div>
         <input type="text" id="manualId" placeholder="Manual ID / Scan Result">
         <button id="actionBtn" class="btn-action" onclick="handleAction()">Log Entry</button>
     </div>
@@ -79,9 +93,7 @@
     <div class="card history-card">
         <strong>🕒 Recent Activity</strong>
         <table id="historyTable">
-            <thead>
-                <tr><th>Time</th><th>ID</th><th>Mode</th><th>Result</th></tr>
-            </thead>
+            <thead><tr><th>Time</th><th>ID</th><th>Mode</th><th>Result</th></tr></thead>
             <tbody></tbody>
         </table>
     </div>
@@ -106,17 +118,35 @@
             
             if(isGrader) {
                 initAnswerKey();
-                document.getElementById('scanner-overlay').innerHTML = ''; // Specific layout handled by grader logic later
+                startGraderPreview();
             } else {
-                document.getElementById('scanner-overlay').innerHTML = '';
+                document.getElementById('scanner-overlay').classList.remove('ready');
+                document.getElementById('scan-prompt').innerText = "SCANNING BARCODE...";
                 startBarcodeLoop();
             }
             playBeep(440, 50);
         }
 
-        function openPrintableSheet() {
-            const items = document.getElementById('itemCount').value;
-            window.open(`sheet.html?items=${items}`, '_blank');
+        // Live Preview for Grader (The "Green Light" Logic)
+        function startGraderPreview() {
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('scanner-overlay');
+            const prompt = document.getElementById('scan-prompt');
+
+            function frame() {
+                if (currentMode !== 'Grader') return;
+                
+                // If camera is active, show the "Green" indicator as a guide
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    overlay.classList.add('ready');
+                    prompt.innerText = "READY TO SCAN";
+                } else {
+                    overlay.classList.remove('ready');
+                    prompt.innerText = "ALIGN PAPER";
+                }
+                requestAnimationFrame(frame);
+            }
+            frame();
         }
 
         async function startCamera() {
@@ -124,7 +154,6 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 video.srcObject = stream;
-                video.onloadedmetadata = () => { if(currentMode !== 'Grader') startBarcodeLoop(); };
             } catch (err) { document.getElementById('status').innerText = "Camera Access Required"; }
         }
 
@@ -195,7 +224,6 @@
 
         function logData(id, val) {
             const url = `${scriptURL}?id=${encodeURIComponent(id)}&type=${encodeURIComponent(currentMode)}&score=${encodeURIComponent(val)}`;
-            document.getElementById('status').innerText = "Syncing...";
             fetch(url, { method: "GET", mode: "no-cors" })
                 .then(() => {
                     document.getElementById('status').innerText = "✅ Sent: " + id;
@@ -203,7 +231,7 @@
                     playBeep(880, 150);
                 })
                 .catch(() => {
-                    document.getElementById('status').innerText = "📡 Offline Save";
+                    document.getElementById('status').innerText = "📡 Saved Offline";
                     addToHistory(id, currentMode, val + " (Offline)");
                     playBeep(440, 200);
                 });
@@ -230,7 +258,7 @@
                 o.connect(g); g.connect(a.destination);
                 g.gain.value = 0.1;
                 o.start(); o.stop(a.currentTime + d/1000);
-            } catch(e) { console.log("Audio blocked"); }
+            } catch(e) {}
         }
 
         function initAnswerKey() {
@@ -279,6 +307,11 @@
                 line.style.height = (100 / items) + "%";
                 overlay.appendChild(line);
             }
+        }
+
+        function openPrintableSheet() {
+            const items = document.getElementById('itemCount').value;
+            window.open(`sheet.html?items=${items}`, '_blank');
         }
 
         window.onload = startCamera;
